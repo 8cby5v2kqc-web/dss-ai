@@ -2,36 +2,42 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture Editor — Красивый шрифт и скругления</title>
+    <title>Rich Picture Editor — код справа, картинка слева</title>
     <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             height: 100vh;
+            overflow: hidden;
             background: #2d2d2d;
-            color: #ccc;
         }
+        /* Левая панель (картинка) */
         .left-panel {
-            width: 40%;
-            background: #1e1e1e;
-            display: flex;
-            flex-direction: column;
-            border-right: 2px solid #555;
-        }
-        .right-panel {
-            width: 60%;
             display: flex;
             justify-content: center;
             align-items: center;
             background: #3c3c3c;
+            overflow: auto;
+            padding: 10px;
+            width: 60%; /* начальная ширина, будет меняться */
+            transition: width 0.1s;
+        }
+        /* Правая панель (код) */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5; /* светлый фон для кода */
+            border-left: 2px solid #555;
+            width: 40%;
+            transition: width 0.1s;
         }
         .toolbar {
             padding: 10px;
-            background: #2d2d2d;
+            background: #e0e0e0;
             text-align: center;
-            border-top: 1px solid #555;
+            border-bottom: 1px solid #ccc;
+            flex-shrink: 0;
         }
         button {
             background: #007acc;
@@ -49,57 +55,130 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        /* Разделитель */
+        .splitter {
+            width: 6px;
+            background: #888;
+            cursor: col-resize;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .splitter:hover, .splitter:active {
+            background: #007acc;
         }
         .CodeMirror {
-            height: 100%;
-            font-size: 15px;
+            height: 100% !important;
+            font-size: 16px; /* крупный шрифт */
         }
         .error-message {
-            color: #ff6b6b;
+            color: #d32f2f;
             padding: 5px 10px;
-            background: #3a1e1e;
+            background: #ffebee;
             border-radius: 4px;
             margin: 5px;
             display: none;
             font-family: 'Courier New', monospace;
+            border: 1px solid #d32f2f;
         }
+        /* Светлая тема для CodeMirror (можно заменить на dracula если нужно) */
+        .cm-s-default { background: #fff; color: #000; }
     </style>
-    <!-- CodeMirror -->
+    <!-- CodeMirror с базовой темой -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
     <!-- Ajv -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.12.0/ajv.min.js"></script>
 </head>
 <body>
-    <div class="left-panel">
+    <!-- Левая панель с картинкой -->
+    <div class="left-panel" id="leftPanel">
+        <canvas id="richCanvas" width="1200" height="800"></canvas>
+    </div>
+    <!-- Разделитель -->
+    <div class="splitter" id="splitter"></div>
+    <!-- Правая панель с кодом -->
+    <div class="right-panel" id="rightPanel">
         <textarea id="jsonCode" hidden></textarea>
         <div class="toolbar">
             <button onclick="renderFromJSON()">Обновить</button>
             <button onclick="formatJSON()">Форматировать</button>
             <button onclick="exportPNG()">Сохранить PNG</button>
+            <button onclick="swapPanels()">Поменять стороны</button>
         </div>
         <div id="validationError" class="error-message"></div>
     </div>
-    <div class="right-panel">
-        <canvas id="richCanvas" width="1200" height="800"></canvas>
-    </div>
 
     <script>
+        // --- Переменные для splitter ---
+        const leftPanel = document.getElementById('leftPanel');
+        const rightPanel = document.getElementById('rightPanel');
+        const splitter = document.getElementById('splitter');
+        let isDragging = false;
+        let startX, startLeftWidth, startRightWidth;
+
+        splitter.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startLeftWidth = leftPanel.offsetWidth;
+            startRightWidth = rightPanel.offsetWidth;
+            document.body.style.cursor = 'col-resize';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+
+        function onMouseMove(e) {
+            if (!isDragging) return;
+            const delta = e.clientX - startX;
+            const newLeftWidth = startLeftWidth + delta;
+            const containerWidth = document.body.clientWidth;
+            // Минимальная ширина 200px для каждой панели
+            if (newLeftWidth < 200 || newLeftWidth > containerWidth - 200) return;
+            leftPanel.style.width = newLeftWidth + 'px';
+            rightPanel.style.width = (containerWidth - newLeftWidth - splitter.offsetWidth) + 'px';
+        }
+
+        function onMouseUp() {
+            isDragging = false;
+            document.body.style.cursor = 'default';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+
+        // --- Функция для смены сторон (кнопка) ---
+        function swapPanels() {
+            const parent = document.body;
+            const left = leftPanel;
+            const split = splitter;
+            const right = rightPanel;
+            // Меняем порядок
+            parent.insertBefore(right, split); // right становится перед split
+            parent.insertBefore(split, left);   // split перед left
+            parent.insertBefore(left, null);    // left в конец
+            // Теперь left и right поменялись классами? Но классы остались те же, просто поменяли местами.
+            // Для красоты можно переименовать классы, но не обязательно.
+            // Обновим id и классы, чтобы логика осталась понятной.
+            // Но проще: переименуем id, чтобы кнопка знала, где canvas.
+            // Проще не трогать id, а просто переставить DOM-элементы.
+        }
+
         // --- Инициализация CodeMirror ---
         const textarea = document.getElementById('jsonCode');
         const editor = CodeMirror.fromTextArea(textarea, {
             mode: { name: 'javascript', json: true },
-            theme: 'dracula',
             lineNumbers: true,
             lineWrapping: true,
             indentUnit: 2,
             autoCloseBrackets: true,
-            matchBrackets: true
+            matchBrackets: true,
+            theme: 'default' // светлая тема
         });
 
-        // --- Определение JSON Schema (обновлено: допускаем "colors" как ошибку, но лучше исправить) ---
+        // --- JSON Schema (как в предыдущем варианте) ---
         const schema = {
             type: "object",
             properties: {
@@ -157,37 +236,7 @@
         const ajv = new Ajv();
         const validate = ajv.compile(schema);
 
-        // --- Функции рисования с улучшенной стилистикой ---
-        function drawRectWithText(ctx, x, y, w, h, title, lines, color = '#e3f2fd') {
-            // Скруглённые углы
-            ctx.fillStyle = color;
-            ctx.shadowColor = 'rgba(0,0,0,0.2)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 3;
-            ctx.shadowOffsetY = 3;
-            ctx.beginPath();
-            ctx.roundRect(x, y, w, h, 12);
-            ctx.fill();
-            ctx.shadowColor = 'transparent'; // убираем тень для обводки
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            // Заголовок (жирный, Times New Roman)
-            ctx.font = 'bold 18px "Times New Roman", serif';
-            ctx.fillStyle = '#000';
-            ctx.textAlign = 'center';
-            ctx.fillText(title, x + w/2, y + 30);
-
-            // Основной текст (Times New Roman)
-            ctx.font = '16px "Times New Roman", serif';
-            ctx.fillStyle = '#222';
-            for (let i = 0; i < lines.length; i++) {
-                ctx.fillText(lines[i], x + w/2, y + 60 + i * 24);
-            }
-        }
-
-        // Вспомогательная функция для скруглённого прямоугольника
+        // --- Функции рисования (улучшенные) ---
         CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
             if (w < 2 * r) r = w / 2;
             if (h < 2 * r) r = h / 2;
@@ -202,6 +251,32 @@
             this.quadraticCurveTo(x, y, x + r, y);
             return this;
         };
+
+        function drawRectWithText(ctx, x, y, w, h, title, lines, color = '#e3f2fd') {
+            ctx.fillStyle = color;
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetX = 3;
+            ctx.shadowOffsetY = 3;
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, 12);
+            ctx.fill();
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.font = 'bold 18px "Times New Roman", serif';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.fillText(title, x + w/2, y + 30);
+
+            ctx.font = '16px "Times New Roman", serif';
+            ctx.fillStyle = '#222';
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillText(lines[i], x + w/2, y + 60 + i * 24);
+            }
+        }
 
         function drawCloud(ctx, x, y, w, h, lines, color = '#fff9c4') {
             ctx.fillStyle = color;
@@ -237,7 +312,6 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Наконечник стрелки
             const angle = Math.atan2(y2 - y1, x2 - x1);
             const arrowSize = 14;
             const dx = arrowSize * 0.7 * Math.cos(angle - 0.3);
@@ -259,7 +333,6 @@
                 ctx.textBaseline = 'bottom';
                 const midX = (x1 + x2) / 2;
                 const midY = (y1 + y2) / 2 - 12;
-                // Поддержка многострочных подписей (разделяем по '\n')
                 const lines = label.split('\n');
                 for (let i = 0; i < lines.length; i++) {
                     ctx.fillText(lines[i], midX, midY + i * 22);
@@ -274,40 +347,32 @@
             const jsonString = editor.getValue();
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.shadowColor = 'transparent'; // сброс теней
+            ctx.shadowColor = 'transparent';
             errorDiv.style.display = 'none';
 
             try {
                 const data = JSON.parse(jsonString);
-
-                // Валидация
                 const valid = validate(data);
                 if (!valid) {
                     const errors = validate.errors.map(e => `${e.instancePath} ${e.message}`).join('; ');
                     throw new Error(`Схема не пройдена: ${errors}`);
                 }
 
-                // Рисуем прямоугольники
                 if (data.rectangles) {
                     data.rectangles.forEach(r => {
                         drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color);
                     });
                 }
-
-                // Рисуем облака
                 if (data.clouds) {
                     data.clouds.forEach(c => {
                         drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color);
                     });
                 }
-
-                // Рисуем стрелки
                 if (data.arrows) {
                     data.arrows.forEach(a => {
                         drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color, a.dashed);
                     });
                 }
-
             } catch (e) {
                 errorDiv.style.display = 'block';
                 errorDiv.innerText = 'Ошибка: ' + e.message;
@@ -331,7 +396,7 @@
             link.click();
         }
 
-        // --- Начальный JSON с вашими правками (исправлен) ---
+        // --- Начальный JSON (исправленный, с вашими облаками) ---
         const defaultJson = {
             rectangles: [
                 {
@@ -350,14 +415,23 @@
                     height: 160,
                     title: "Психолог",
                     lines: ["сессии, опросники", "(Beck, GAD-7)", "ручная обработка", "бумажные карты"],
-                    color: "#c8e6c9"  // было "colors", исправил на "color"
+                    color: "#c8e6c9"
+                },
+                {
+                    x: 450,
+                    y: 220,
+                    width: 300,
+                    height: 220,
+                    title: "Защищенная платформа",
+                    lines: ["• Эл. опросники (автоподсчёт)", "• Безопасный дневник", "• Панель психолога", "• Шифрование и доступ"],
+                    color: "#ffe0b2"
                 }
             ],
             clouds: [
                 {
                     x: 600,
                     y: 60,
-                    width: 240,
+                    width: 280,
                     height: 70,
                     lines: ["Нет структурированного", "наблюдения между сессиями"],
                     color: "#ffe0b2"
@@ -382,6 +456,15 @@
             arrows: [
                 {
                     x1: 230,
+                    y1: 330,
+                    x2: 970,
+                    y2: 330,
+                    label: "Сессии",
+                    color: "#2c3e50",
+                    dashed: false
+                },
+                {
+                    x1: 230,
                     y1: 280,
                     x2: 450,
                     y2: 300,
@@ -397,20 +480,10 @@
                     label: "Получает отчёты,\nотслеживает динамику",
                     color: "#2e7d32",
                     dashed: false
-                },
-                {
-                    x1: 230,
-                    y1: 330,
-                    x2: 970,
-                    y2: 330,
-                    label: "Сессии",
-                    color: "#2c3e50",
-                    dashed: false
                 }
             ]
         };
 
-        // Устанавливаем начальный JSON
         editor.setValue(JSON.stringify(defaultJson, null, 2));
         window.onload = function() {
             renderFromJSON();
