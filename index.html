@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture Editor — код справа, картинка слева</title>
+    <title>Rich Picture Editor — сохранение и автозагрузка</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -12,7 +12,6 @@
             overflow: hidden;
             background: #2d2d2d;
         }
-        /* Левая панель (картинка) */
         .left-panel {
             display: flex;
             justify-content: center;
@@ -20,14 +19,13 @@
             background: #3c3c3c;
             overflow: auto;
             padding: 10px;
-            width: 60%; /* начальная ширина, будет меняться */
+            width: 60%;
             transition: width 0.1s;
         }
-        /* Правая панель (код) */
         .right-panel {
             display: flex;
             flex-direction: column;
-            background: #f5f5f5; /* светлый фон для кода */
+            background: #f5f5f5;
             border-left: 2px solid #555;
             width: 40%;
             transition: width 0.1s;
@@ -59,7 +57,6 @@
             max-height: 100%;
             object-fit: contain;
         }
-        /* Разделитель */
         .splitter {
             width: 6px;
             background: #888;
@@ -72,22 +69,29 @@
         }
         .CodeMirror {
             height: 100% !important;
-            font-size: 16px; /* крупный шрифт */
+            font-size: 16px;
         }
         .error-message {
             color: #d32f2f;
-            padding: 5px 10px;
+            padding: 10px;
             background: #ffebee;
             border-radius: 4px;
-            margin: 5px;
+            margin: 10px;
             display: none;
             font-family: 'Courier New', monospace;
             border: 1px solid #d32f2f;
+            white-space: pre-wrap;
         }
-        /* Светлая тема для CodeMirror (можно заменить на dracula если нужно) */
-        .cm-s-default { background: #fff; color: #000; }
+        .info-bar {
+            padding: 5px 10px;
+            background: #e8e8e8;
+            font-size: 14px;
+            color: #555;
+            text-align: right;
+            border-top: 1px solid #ccc;
+        }
     </style>
-    <!-- CodeMirror с базовой темой -->
+    <!-- CodeMirror -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
@@ -95,13 +99,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.12.0/ajv.min.js"></script>
 </head>
 <body>
-    <!-- Левая панель с картинкой -->
     <div class="left-panel" id="leftPanel">
         <canvas id="richCanvas" width="1200" height="800"></canvas>
     </div>
-    <!-- Разделитель -->
     <div class="splitter" id="splitter"></div>
-    <!-- Правая панель с кодом -->
     <div class="right-panel" id="rightPanel">
         <textarea id="jsonCode" hidden></textarea>
         <div class="toolbar">
@@ -111,10 +112,11 @@
             <button onclick="swapPanels()">Поменять стороны</button>
         </div>
         <div id="validationError" class="error-message"></div>
+        <div class="info-bar">JSON автосохраняется после успешной отрисовки</div>
     </div>
 
     <script>
-        // --- Переменные для splitter ---
+        // === Разделитель панелей ===
         const leftPanel = document.getElementById('leftPanel');
         const rightPanel = document.getElementById('rightPanel');
         const splitter = document.getElementById('splitter');
@@ -136,7 +138,6 @@
             const delta = e.clientX - startX;
             const newLeftWidth = startLeftWidth + delta;
             const containerWidth = document.body.clientWidth;
-            // Минимальная ширина 200px для каждой панели
             if (newLeftWidth < 200 || newLeftWidth > containerWidth - 200) return;
             leftPanel.style.width = newLeftWidth + 'px';
             rightPanel.style.width = (containerWidth - newLeftWidth - splitter.offsetWidth) + 'px';
@@ -149,24 +150,7 @@
             document.removeEventListener('mouseup', onMouseUp);
         }
 
-        // --- Функция для смены сторон (кнопка) ---
-        function swapPanels() {
-            const parent = document.body;
-            const left = leftPanel;
-            const split = splitter;
-            const right = rightPanel;
-            // Меняем порядок
-            parent.insertBefore(right, split); // right становится перед split
-            parent.insertBefore(split, left);   // split перед left
-            parent.insertBefore(left, null);    // left в конец
-            // Теперь left и right поменялись классами? Но классы остались те же, просто поменяли местами.
-            // Для красоты можно переименовать классы, но не обязательно.
-            // Обновим id и классы, чтобы логика осталась понятной.
-            // Но проще: переименуем id, чтобы кнопка знала, где canvas.
-            // Проще не трогать id, а просто переставить DOM-элементы.
-        }
-
-        // --- Инициализация CodeMirror ---
+        // === Инициализация CodeMirror ===
         const textarea = document.getElementById('jsonCode');
         const editor = CodeMirror.fromTextArea(textarea, {
             mode: { name: 'javascript', json: true },
@@ -175,10 +159,10 @@
             indentUnit: 2,
             autoCloseBrackets: true,
             matchBrackets: true,
-            theme: 'default' // светлая тема
+            theme: 'default'
         });
 
-        // --- JSON Schema (как в предыдущем варианте) ---
+        // === JSON Schema ===
         const schema = {
             type: "object",
             properties: {
@@ -236,7 +220,7 @@
         const ajv = new Ajv();
         const validate = ajv.compile(schema);
 
-        // --- Функции рисования (улучшенные) ---
+        // === Функции рисования (как в предыдущей версии) ===
         CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
             if (w < 2 * r) r = w / 2;
             if (h < 2 * r) r = h / 2;
@@ -343,60 +327,18 @@
         const canvas = document.getElementById('richCanvas');
         const errorDiv = document.getElementById('validationError');
 
-        function renderFromJSON() {
-            const jsonString = editor.getValue();
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.shadowColor = 'transparent';
-            errorDiv.style.display = 'none';
+        // === Сохранение и загрузка из localStorage ===
+        const STORAGE_KEY = 'richPictureJson';
 
-            try {
-                const data = JSON.parse(jsonString);
-                const valid = validate(data);
-                if (!valid) {
-                    const errors = validate.errors.map(e => `${e.instancePath} ${e.message}`).join('; ');
-                    throw new Error(`Схема не пройдена: ${errors}`);
-                }
-
-                if (data.rectangles) {
-                    data.rectangles.forEach(r => {
-                        drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color);
-                    });
-                }
-                if (data.clouds) {
-                    data.clouds.forEach(c => {
-                        drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color);
-                    });
-                }
-                if (data.arrows) {
-                    data.arrows.forEach(a => {
-                        drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color, a.dashed);
-                    });
-                }
-            } catch (e) {
-                errorDiv.style.display = 'block';
-                errorDiv.innerText = 'Ошибка: ' + e.message;
-            }
+        function saveToStorage(jsonString) {
+            localStorage.setItem(STORAGE_KEY, jsonString);
         }
 
-        function formatJSON() {
-            try {
-                const parsed = JSON.parse(editor.getValue());
-                const formatted = JSON.stringify(parsed, null, 2);
-                editor.setValue(formatted);
-            } catch (e) {
-                alert('Нельзя отформатировать: ' + e.message);
-            }
+        function loadFromStorage() {
+            return localStorage.getItem(STORAGE_KEY);
         }
 
-        function exportPNG() {
-            const link = document.createElement('a');
-            link.download = 'rich-picture.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }
-
-        // --- Начальный JSON (исправленный, с вашими облаками) ---
+        // === Исправленный дефолтный JSON (без обратных слешей) ===
         const defaultJson = {
             rectangles: [
                 {
@@ -468,7 +410,7 @@
                     y1: 280,
                     x2: 450,
                     y2: 300,
-                    label: "Заполняет скрининги,\nведёт дневник",
+                    label: "Заполняет скрининги,\nведёт дневник",  // исправлено: убран обратный слеш
                     color: "#2e7d32",
                     dashed: false
                 },
@@ -477,14 +419,94 @@
                     y1: 280,
                     x2: 750,
                     y2: 320,
-                    label: "Получает отчёты,\nотслеживает динамику",
+                    label: "Получает отчёты,\nотслеживает динамику", // исправлено
                     color: "#2e7d32",
                     dashed: false
                 }
             ]
         };
 
-        editor.setValue(JSON.stringify(defaultJson, null, 2));
+        // === Загружаем либо из localStorage, либо дефолт ===
+        const saved = loadFromStorage();
+        if (saved) {
+            editor.setValue(saved);
+        } else {
+            editor.setValue(JSON.stringify(defaultJson, null, 2));
+        }
+
+        // === Основная функция рендера с сохранением ===
+        function renderFromJSON() {
+            const jsonString = editor.getValue();
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.shadowColor = 'transparent';
+            errorDiv.style.display = 'none';
+
+            try {
+                const data = JSON.parse(jsonString);
+
+                // Валидация по схеме
+                const valid = validate(data);
+                if (!valid) {
+                    const errors = validate.errors.map(e => `${e.instancePath} ${e.message}`).join('; ');
+                    throw new Error(`Схема не пройдена: ${errors}`);
+                }
+
+                // Рисуем
+                if (data.rectangles) {
+                    data.rectangles.forEach(r => {
+                        drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color);
+                    });
+                }
+                if (data.clouds) {
+                    data.clouds.forEach(c => {
+                        drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color);
+                    });
+                }
+                if (data.arrows) {
+                    data.arrows.forEach(a => {
+                        drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color, a.dashed);
+                    });
+                }
+
+                // Если дошли до сюда — сохраняем в localStorage
+                saveToStorage(jsonString);
+
+            } catch (e) {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = 'Ошибка: ' + e.message;
+            }
+        }
+
+        function formatJSON() {
+            try {
+                const parsed = JSON.parse(editor.getValue());
+                const formatted = JSON.stringify(parsed, null, 2);
+                editor.setValue(formatted);
+            } catch (e) {
+                alert('Нельзя отформатировать: ' + e.message);
+            }
+        }
+
+        function exportPNG() {
+            const link = document.createElement('a');
+            link.download = 'rich-picture.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // === Смена панелей ===
+        function swapPanels() {
+            const parent = document.body;
+            const left = leftPanel;
+            const split = splitter;
+            const right = rightPanel;
+            parent.insertBefore(right, split);
+            parent.insertBefore(split, left);
+            parent.insertBefore(left, null);
+        }
+
+        // При загрузке сразу рисуем
         window.onload = function() {
             renderFromJSON();
         };
