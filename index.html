@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture — красиво и удобно</title>
+    <title>Rich Picture Editor — готовый JSON</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -13,14 +13,14 @@
             background: #2d2d2d;
         }
         .left-panel {
-            width: 40%;
+            width: 50%;
             display: flex;
             flex-direction: column;
             background: #f5f5f5;
             border-right: 2px solid #555;
         }
         .right-panel {
-            width: 60%;
+            width: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -63,23 +63,10 @@
             display: none;
             border-radius: 4px;
         }
-        .save-indicator {
-            background: #4caf50;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 14px;
-            margin-left: 10px;
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
     </style>
-    <!-- CodeMirror -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
-    <!-- Ajv для валидации (необязательно, но полезно) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.12.0/ajv.min.js"></script>
 </head>
 <body>
     <div class="left-panel">
@@ -87,8 +74,6 @@
         <div class="toolbar">
             <button onclick="render()">Обновить</button>
             <button onclick="format()">Форматировать</button>
-            <button onclick="saveToStorage()">💾 Сохранить</button>
-            <span id="saveIndicator" class="save-indicator">✓ Сохранено</span>
         </div>
         <div id="error" class="error-message"></div>
     </div>
@@ -97,7 +82,7 @@
     </div>
 
     <script>
-        // --- Встроенный JSON (уже с исправленной стрелкой) ---
+        // --- Встроенный JSON (тот самый рабочий) ---
         const defaultJson = {
             rectangles: [
                 { x: 50, y: 200, width: 180, height: 160, title: "Клиент", lines: ["тревога/депрессия", "сомнения, стигма", "ведёт дневник", "(бумага/телефон)"], color: "#bbdefb" },
@@ -110,211 +95,100 @@
                 { x: 140, y: 100, width: 200, height: 60, lines: ["Риск утечки", "конфиденциальных данных"], color: "#ffab91" }
             ],
             arrows: [
-                // Стрелка "Сессии" теперь ниже платформы (y = 460)
-                { x1: 230, y1: 460, x2: 970, y2: 460, label: "Сессии", color: "#2c3e50", dashed: false },
+                { x1: 230, y1: 330, x2: 970, y2: 330, label: "Сессии", color: "#2c3e50", dashed: false },
                 { x1: 230, y1: 280, x2: 450, y2: 300, label: "Заполняет скрининги,\nведёт дневник", color: "#2e7d32", dashed: false },
                 { x1: 970, y1: 280, x2: 750, y2: 320, label: "Получает отчёты,\nотслеживает динамику", color: "#2e7d32", dashed: false }
             ]
         };
 
-        // --- Настройка CodeMirror ---
+        // --- Настройка редактора ---
         const textarea = document.getElementById('jsonCode');
         const editor = CodeMirror.fromTextArea(textarea, {
             mode: { name: 'javascript', json: true },
             lineNumbers: true,
             indentUnit: 2,
-            theme: 'default',
-            lineWrapping: true
+            theme: 'default'
         });
         editor.setValue(JSON.stringify(defaultJson, null, 2));
 
-        // --- Валидация JSON-схемы (чтобы не ошибиться) ---
-        const schema = {
-            type: "object",
-            properties: {
-                rectangles: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" },
-                            title: { type: "string" }, lines: { type: "array", items: { type: "string" } },
-                            color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }
-                        },
-                        required: ["x", "y", "width", "height", "title", "lines"]
-                    }
-                },
-                clouds: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" },
-                            lines: { type: "array", items: { type: "string" } },
-                            color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }
-                        },
-                        required: ["x", "y", "width", "height", "lines"]
-                    }
-                },
-                arrows: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            x1: { type: "number" }, y1: { type: "number" }, x2: { type: "number" }, y2: { type: "number" },
-                            label: { type: "string" }, color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }, dashed: { type: "boolean" }
-                        },
-                        required: ["x1", "y1", "x2", "y2"]
-                    }
-                }
-            },
-            additionalProperties: false
-        };
-        const ajv = new Ajv();
-        const validate = ajv.compile(schema);
-
-        // --- Функции рисования (красивые) ---
-        // Вспомогательная функция для скруглённого прямоугольника
-        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
-            if (w < 2 * r) r = w / 2;
-            if (h < 2 * r) r = h / 2;
-            this.moveTo(x + r, y);
-            this.lineTo(x + w - r, y);
-            this.quadraticCurveTo(x + w, y, x + w, y + r);
-            this.lineTo(x + w, y + h - r);
-            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            this.lineTo(x + r, y + h);
-            this.quadraticCurveTo(x, y + h, x, y + h - r);
-            this.lineTo(x, y + r);
-            this.quadraticCurveTo(x, y, x + r, y);
-            return this;
-        };
-
-        function drawRectWithText(ctx, x, y, w, h, title, lines, color) {
+        // --- Функции рисования (упрощённые, но рабочие) ---
+        function drawRect(ctx, x, y, w, h, title, lines, color) {
             ctx.fillStyle = color;
-            ctx.shadowColor = 'rgba(0,0,0,0.2)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 3;
-            ctx.shadowOffsetY = 3;
-            ctx.beginPath();
-            ctx.roundRect(x, y, w, h, 12);
-            ctx.fill();
-            ctx.shadowColor = 'transparent';
+            ctx.fillRect(x, y, w, h);
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.font = 'bold 18px "Times New Roman", serif';
+            ctx.strokeRect(x, y, w, h);
+            ctx.font = 'bold 16px Times New Roman';
             ctx.fillStyle = '#000';
             ctx.textAlign = 'center';
-            ctx.fillText(title, x + w/2, y + 30);
-
-            ctx.font = '16px "Times New Roman", serif';
-            ctx.fillStyle = '#222';
+            ctx.fillText(title, x + w/2, y + 25);
+            ctx.font = '14px Times New Roman';
             for (let i = 0; i < lines.length; i++) {
-                ctx.fillText(lines[i], x + w/2, y + 60 + i * 24);
+                ctx.fillText(lines[i], x + w/2, y + 50 + i * 20);
             }
         }
 
         function drawCloud(ctx, x, y, w, h, lines, color) {
             ctx.fillStyle = color;
-            ctx.shadowColor = 'rgba(0,0,0,0.15)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
             ctx.beginPath();
-            ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI * 2);
+            ctx.ellipse(x, y, w/2, h/2, 0, 0, 2*Math.PI);
             ctx.fill();
-            ctx.shadowColor = 'transparent';
             ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1.5;
             ctx.stroke();
-
-            ctx.font = '16px "Times New Roman", serif';
+            ctx.font = '14px Times New Roman';
             ctx.fillStyle = '#000';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            let startY = y - (lines.length-1) * 12;
+            let startY = y - (lines.length-1)*8;
             for (let i = 0; i < lines.length; i++) {
-                ctx.fillText(lines[i], x, startY + i * 24);
+                ctx.fillText(lines[i], x, startY + i*18);
             }
         }
 
-        function drawArrow(ctx, x1, y1, x2, y2, label, color, dashed) {
-            ctx.beginPath();
+        function drawArrow(ctx, x1, y1, x2, y2, label, color) {
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2.5;
-            ctx.setLineDash(dashed ? [8, 6] : []);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Наконечник
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            const arrowSize = 14;
-            const dx = arrowSize * 0.7 * Math.cos(angle - 0.3);
-            const dy = arrowSize * 0.7 * Math.sin(angle - 0.3);
-            const dx2 = arrowSize * 0.7 * Math.cos(angle + 0.3);
-            const dy2 = arrowSize * 0.7 * Math.sin(angle + 0.3);
+            // наконечник
+            let angle = Math.atan2(y2 - y1, x2 - x1);
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.moveTo(x2, y2);
-            ctx.lineTo(x2 - dx, y2 - dy);
-            ctx.lineTo(x2 - dx2, y2 - dy2);
+            ctx.lineTo(x2 - 10 * Math.cos(angle - 0.3), y2 - 10 * Math.sin(angle - 0.3));
+            ctx.lineTo(x2 - 10 * Math.cos(angle + 0.3), y2 - 10 * Math.sin(angle + 0.3));
             ctx.closePath();
             ctx.fill();
-
-            // Подпись (многострочная)
             if (label) {
-                ctx.font = 'italic 16px "Times New Roman", serif';
+                ctx.font = 'italic 14px Times New Roman';
                 ctx.fillStyle = '#333';
                 ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                const midX = (x1 + x2) / 2;
-                const midY = (y1 + y2) / 2 - 12;
-                const lines = label.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    ctx.fillText(lines[i], midX, midY + i * 22);
-                }
+                let midX = (x1 + x2)/2;
+                let midY = (y1 + y2)/2 - 10;
+                ctx.fillText(label, midX, midY);
             }
         }
 
-        // --- Отрисовка ---
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const errorDiv = document.getElementById('error');
-        const saveIndicator = document.getElementById('saveIndicator');
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.shadowColor = 'transparent';
             errorDiv.style.display = 'none';
-
             try {
                 const data = JSON.parse(editor.getValue());
-                const valid = validate(data);
-                if (!valid) {
-                    const errors = validate.errors.map(e => `${e.instancePath} ${e.message}`).join('; ');
-                    throw new Error(`Схема не пройдена: ${errors}`);
-                }
-
-                if (data.rectangles) {
-                    data.rectangles.forEach(r => drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color));
-                }
-                if (data.clouds) {
-                    data.clouds.forEach(c => drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color));
-                }
-                if (data.arrows) {
-                    data.arrows.forEach(a => drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color, a.dashed));
-                }
+                if (data.rectangles) data.rectangles.forEach(r => drawRect(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color));
+                if (data.clouds) data.clouds.forEach(c => drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color));
+                if (data.arrows) data.arrows.forEach(a => drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color));
             } catch (e) {
                 errorDiv.style.display = 'block';
-                errorDiv.innerText = 'Ошибка: ' + e.message;
+                errorDiv.innerText = 'Ошибка в JSON: ' + e.message;
             }
         }
 
-        // --- Форматирование JSON ---
         function format() {
             try {
                 const parsed = JSON.parse(editor.getValue());
@@ -324,36 +198,7 @@
             }
         }
 
-        // --- Сохранение в localStorage ---
-        const STORAGE_KEY = 'richPictureJson';
-
-        function saveToStorage() {
-            const jsonString = editor.getValue();
-            try {
-                JSON.parse(jsonString); // проверка
-                localStorage.setItem(STORAGE_KEY, jsonString);
-                saveIndicator.style.opacity = '1';
-                setTimeout(() => saveIndicator.style.opacity = '0', 2000);
-            } catch (e) {
-                alert('Ошибка в JSON, сохранение невозможно: ' + e.message);
-            }
-        }
-
-        // --- Загрузка сохранённого JSON при старте ---
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                JSON.parse(saved); // проверим
-                editor.setValue(saved);
-            } catch (e) {
-                editor.setValue(JSON.stringify(defaultJson, null, 2));
-            }
-        } else {
-            editor.setValue(JSON.stringify(defaultJson, null, 2));
-        }
-
-        // Первый рендер
-        render();
+        render(); // сразу рисуем
     </script>
 </body>
 </html>
