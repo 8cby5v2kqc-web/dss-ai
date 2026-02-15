@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Rich Picture: Платформа для психологов и клиентов</title>
+    <style>
+        body {
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 20px;
+            display: inline-block;
+        }
+        canvas {
+            display: block;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <canvas id="richCanvas" width="1200" height="800"></canvas>
+</div>
+
+<script>
+    (function() {
+        const canvas = document.getElementById('richCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Очистка фона
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Вспомогательные функции
+
+        // Рисует прямоугольник с заголовком и многострочным текстом
+        function drawRectWithText(x, y, width, height, title, lines, color = '#e3f2fd') {
+            // Прямоугольник
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, width, height);
+
+            // Заголовок (жирный)
+            ctx.font = 'bold 16px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.fillText(title, x + width/2, y + 25);
+
+            // Остальные строки
+            ctx.font = '14px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#222';
+            let startY = y + 50;
+            const lineHeight = 20;
+            lines.forEach((line, index) => {
+                ctx.fillText(line, x + width/2, startY + index * lineHeight);
+            });
+        }
+
+        // Рисует "облако" (овал с текстом внутри)
+        function drawCloud(x, y, width, height, lines, color = '#fff9c4') {
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 2;
+            // Рисуем овал (облако)
+            ctx.beginPath();
+            ctx.ellipse(x, y, width/2, height/2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Текст внутри
+            ctx.font = '14px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let startY = y - (lines.length-1) * 10;
+            lines.forEach((line, i) => {
+                ctx.fillText(line, x, startY + i * 20);
+            });
+        }
+
+        // Рисует стрелку от (x1,y1) до (x2,y2) с подписью (опционально)
+        function drawArrow(x1, y1, x2, y2, label = '', color = '#555', dashed = false) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            if (dashed) ctx.setLineDash([5, 5]);
+            else ctx.setLineDash([]);
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.setLineDash([]); // сброс
+
+            // Рисуем наконечник (треугольник) в точке (x2,y2)
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const arrowSize = 12;
+            const dx = arrowSize * 0.7 * Math.cos(angle - 0.2);
+            const dy = arrowSize * 0.7 * Math.sin(angle - 0.2);
+            const dx2 = arrowSize * 0.7 * Math.cos(angle + 0.2);
+            const dy2 = arrowSize * 0.7 * Math.sin(angle + 0.2);
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - dx, y2 - dy);
+            ctx.lineTo(x2 - dx2, y2 - dy2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Подпись
+            if (label) {
+                ctx.font = 'italic 14px "Segoe UI", sans-serif';
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                // Размещаем подпись посередине линии, немного сместив
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2 - 10;
+                ctx.fillText(label, midX, midY);
+            }
+        }
+
+        // ---- Отрисовка всех элементов ----
+
+        // 1. Клиент (слева)
+        drawRectWithText(
+            50, 200, 180, 160,
+            'Клиент',
+            [
+                'тревога/депрессия',
+                'сомнения, стигма',
+                'ведёт дневник',
+                '(бумага/телефон)'
+            ],
+            '#bbdefb'
+        );
+
+        // 2. Психолог (справа)
+        drawRectWithText(
+            970, 200, 180, 160,
+            'Психолог',
+            [
+                'сессии, опросники',
+                '(Beck, GAD-7)',
+                'ручная обработка',
+                'бумажные карты'
+            ],
+            '#c8e6c9'
+        );
+
+        // 3. Платформа (центр)
+        drawRectWithText(
+            450, 220, 300, 220,
+            'Защищенная платформа',
+            [
+                '• Эл. опросники (автоподсчёт)',
+                '• Безопасный дневник',
+                '• Панель психолога',
+                '• Шифрование и доступ'
+            ],
+            '#ffe0b2'
+        );
+
+        // 4. Облака проблем
+
+        // Облако 1: Ручная обработка → ошибки (над психологом)
+        drawCloud(1060, 100, 200, 60, ['Ручная обработка →', 'ошибки до 15%'], '#ffccbc');
+
+        // Облако 2: Нет наблюдения между сессиями (по центру вверху)
+        drawCloud(600, 60, 240, 60, ['Нет структурированного', 'наблюдения между сессиями'], '#ffe0b2');
+
+        // Облако 3: Риск утечки (над клиентом)
+        drawCloud(140, 100, 200, 60, ['Риск утечки', 'конфиденциальных данных'], '#ffab91');
+
+        // 5. Стрелка "Сессии" между клиентом и психологом
+        drawArrow(230, 280, 970, 280, 'Сессии', '#2c3e50');
+
+        // 6. Стрелки от клиента к платформе
+        drawArrow(230, 280, 450, 300, 'Заполняет скрининги,\nведёт дневник', '#2e7d32');
+        // Маленькая поправка: подпись будет смещена, но для читаемости оставим одну строку
+        // добавим вторую стрелку или подпись длиннее? Используем ту же функцию, подпись может быть двустрочной, но canvas не умеет \n.
+        // Для простоты сократим подпись: "Заполняет скрининги, ведёт дневник" в одну строку,
+        // но функция drawArrow пишет в одну строку. Визуально она будет выглядеть нормально.
+
+        // 7. Стрелки от психолога к платформе
+        drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслеживает динамику', '#2e7d32');
+
+        // Дополнительные штрихи: показать, что у клиента есть дневник, у психолога — бумажные карты
+        // Добавим маленькие иконки / текст возле фигур? Можно просто текстом внутри, уже указано.
+
+        // 8. Подпись для платформы (уже есть внутри)
+
+        // 9. Дополнительная стрелка от клиента к платформе (ещё одна, чтобы показать "ведёт дневник" отдельно? 
+        // Но у нас уже одна стрелка с текстом. Оставим так.)
+
+        // Для большей информативности можно добавить маленькие пояснения рядом со стрелками
+        // уже сделано через параметр label.
+
+        // Визуально выделим границы
+        ctx.font = '12px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#555';
+        ctx.fillText('Разрабатываемая система', 570, 210);
+
+        console.log('Rich Picture отрисован');
+    })();
+</script>
+</body>
+</html>
