@@ -2,65 +2,119 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture Editor</title>
+    <title>Rich Picture JSON Editor</title>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; background: #2d2d2d; color: #ccc; }
         .left-panel { width: 40%; background: #1e1e1e; display: flex; flex-direction: column; border-right: 2px solid #555; }
         .right-panel { width: 60%; display: flex; justify-content: center; align-items: center; background: #3c3c3c; }
-        textarea { width: 100%; flex-grow: 1; background: #1e1e1e; color: #d4d4d4; border: none; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; resize: none; outline: none; }
-        .toolbar { padding: 10px; background: #2d2d2d; text-align: center; }
-        button { background: #007acc; border: none; color: white; padding: 8px 16px; font-size: 16px; border-radius: 4px; cursor: pointer; }
+        .toolbar { padding: 10px; background: #2d2d2d; text-align: center; border-top: 1px solid #555; }
+        button { background: #007acc; border: none; color: white; padding: 8px 16px; font-size: 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
         button:hover { background: #005a9e; }
         canvas { background: white; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        /* стили для CodeMirror — он займёт всю высоту */
+        .CodeMirror { height: 100%; font-size: 14px; }
     </style>
+    <!-- CodeMirror CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
 </head>
 <body>
     <div class="left-panel">
-        <textarea id="code" spellcheck="false">
-// Функции рисования (они уже определены в глобальной области)
-// Вы можете их вызывать, менять координаты, текст и цвета.
-
-// Клиент (слева)
-drawRectWithText(50, 200, 180, 160, 'Клиент', [
-    'тревога/депрессия',
-    'сомнения, стигма',
-    'ведёт дневник',
-    '(бумага/телефон)'
-], '#bbdefb');
-
-// Психолог (справа)
-drawRectWithText(970, 200, 180, 160, 'Психолог', [
-    'сессии, опросники',
-    '(Beck, GAD-7)',
-    'ручная обработка',
-    'бумажные карты'
-], '#c8e6c9');
-
-// Платформа (центр)
-drawRectWithText(450, 220, 300, 220, 'Защищенная платформа', [
-    '• Эл. опросники (автоподсчёт)',
-    '• Безопасный дневник',
-    '• Панель психолога',
-    '• Шифрование и доступ'
-], '#ffe0b2');
-
-// Облака проблем
-drawCloud(1060, 100, 200, 60, ['Ручная обработка →', 'ошибки до 15%'], '#ffccbc');
-drawCloud(600, 60, 240, 60, ['Нет структурированного', 'наблюдения между сессиями'], '#ffe0b2');
-drawCloud(140, 100, 200, 60, ['Риск утечки', 'конфиденциальных данных'], '#ffab91');
-
-// Стрелка "Сессии" (теперь ниже)
-drawArrow(230, 330, 970, 330, 'Сессии', '#2c3e50');
-
-// Стрелка от клиента к платформе
-drawArrow(230, 280, 450, 300, 'Заполняет скрининги,\nведёт дневник', '#2e7d32');
-
-// Стрелка от психолога к платформе
-drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслеживает динамику', '#2e7d32');
+        <!-- CodeMirror будет прикреплён сюда -->
+        <textarea id="jsonCode" hidden>
+{
+  "rectangles": [
+    {
+      "x": 50,
+      "y": 200,
+      "width": 180,
+      "height": 160,
+      "title": "Клиент",
+      "lines": ["тревога/депрессия", "сомнения, стигма", "ведёт дневник", "(бумага/телефон)"],
+      "color": "#bbdefb"
+    },
+    {
+      "x": 970,
+      "y": 200,
+      "width": 180,
+      "height": 160,
+      "title": "Психолог",
+      "lines": ["сессии, опросники", "(Beck, GAD-7)", "ручная обработка", "бумажные карты"],
+      "color": "#c8e6c9"
+    },
+    {
+      "x": 450,
+      "y": 220,
+      "width": 300,
+      "height": 220,
+      "title": "Защищенная платформа",
+      "lines": ["• Эл. опросники (автоподсчёт)", "• Безопасный дневник", "• Панель психолога", "• Шифрование и доступ"],
+      "color": "#ffe0b2"
+    }
+  ],
+  "clouds": [
+    {
+      "x": 1060,
+      "y": 100,
+      "width": 200,
+      "height": 60,
+      "lines": ["Ручная обработка →", "ошибки до 15%"],
+      "color": "#ffccbc"
+    },
+    {
+      "x": 600,
+      "y": 60,
+      "width": 240,
+      "height": 60,
+      "lines": ["Нет структурированного", "наблюдения между сессиями"],
+      "color": "#ffe0b2"
+    },
+    {
+      "x": 140,
+      "y": 100,
+      "width": 200,
+      "height": 60,
+      "lines": ["Риск утечки", "конфиденциальных данных"],
+      "color": "#ffab91"
+    }
+  ],
+  "arrows": [
+    {
+      "x1": 230,
+      "y1": 330,
+      "x2": 970,
+      "y2": 330,
+      "label": "Сессии",
+      "color": "#2c3e50",
+      "dashed": false
+    },
+    {
+      "x1": 230,
+      "y1": 280,
+      "x2": 450,
+      "y2": 300,
+      "label": "Заполняет скрининги,\nведёт дневник",
+      "color": "#2e7d32",
+      "dashed": false
+    },
+    {
+      "x1": 970,
+      "y1": 280,
+      "x2": 750,
+      "y2": 320,
+      "label": "Получает отчёты,\nотслеживает динамику",
+      "color": "#2e7d32",
+      "dashed": false
+    }
+  ]
+}
         </textarea>
         <div class="toolbar">
-            <button onclick="render()">Обновить</button>
+            <button onclick="renderFromJSON()">Обновить</button>
+            <button onclick="formatJSON()">Форматировать</button>
         </div>
     </div>
     <div class="right-panel">
@@ -68,9 +122,20 @@ drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслежив�
     </div>
 
     <script>
-        // --- Определяем функции рисования точно так же, как в статическом примере ---
-        function drawRectWithText(x, y, w, h, title, lines, color = '#e3f2fd') {
-            const ctx = canvas.getContext('2d');
+        // --- Инициализация CodeMirror ---
+        const textarea = document.getElementById('jsonCode');
+        const editor = CodeMirror.fromTextArea(textarea, {
+            mode: { name: 'javascript', json: true },
+            theme: 'dracula',
+            lineNumbers: true,
+            lineWrapping: true,
+            indentUnit: 2,
+            autoCloseBrackets: true,
+            matchBrackets: true
+        });
+
+        // --- Функции рисования (те же) ---
+        function drawRectWithText(ctx, x, y, w, h, title, lines, color = '#e3f2fd') {
             ctx.fillStyle = color;
             ctx.fillRect(x, y, w, h);
             ctx.strokeStyle = '#333';
@@ -87,8 +152,7 @@ drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслежив�
             }
         }
 
-        function drawCloud(x, y, w, h, lines, color = '#fff9c4') {
-            const ctx = canvas.getContext('2d');
+        function drawCloud(ctx, x, y, w, h, lines, color = '#fff9c4') {
             ctx.fillStyle = color;
             ctx.strokeStyle = '#888';
             ctx.lineWidth = 2;
@@ -106,8 +170,7 @@ drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслежив�
             }
         }
 
-        function drawArrow(x1, y1, x2, y2, label = '', color = '#555', dashed = false) {
-            const ctx = canvas.getContext('2d');
+        function drawArrow(ctx, x1, y1, x2, y2, label = '', color = '#555', dashed = false) {
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
@@ -136,28 +199,64 @@ drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслежив�
                 ctx.textBaseline = 'bottom';
                 const midX = (x1 + x2) / 2;
                 const midY = (y1 + y2) / 2 - 10;
+                // Поддержка многострочной подписи? В данном примере оставим одну строку.
+                // Для переноса строки можно разбить по '\n' и рисовать несколько строк, но для простоты оставим как есть.
                 ctx.fillText(label, midX, midY);
             }
         }
 
         const canvas = document.getElementById('richCanvas');
 
-        function render() {
-            const code = document.getElementById('code').value;
-            // Очищаем canvas перед рисованием
+        // --- Парсинг JSON и отрисовка ---
+        function renderFromJSON() {
+            const jsonString = editor.getValue();
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
             try {
-                // Выполняем код из textarea в контексте текущей страницы.
-                // Функции drawRectWithText и др. уже доступны.
-                eval(code);
+                const data = JSON.parse(jsonString);
+
+                // Рисуем прямоугольники
+                if (data.rectangles) {
+                    data.rectangles.forEach(r => {
+                        drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color);
+                    });
+                }
+
+                // Рисуем облака
+                if (data.clouds) {
+                    data.clouds.forEach(c => {
+                        drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color);
+                    });
+                }
+
+                // Рисуем стрелки
+                if (data.arrows) {
+                    data.arrows.forEach(a => {
+                        drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color, a.dashed);
+                    });
+                }
+
             } catch (e) {
-                alert('Ошибка в коде: ' + e.message);
+                alert('Ошибка в JSON: ' + e.message);
             }
         }
 
-        // Автоматически рендерим при загрузке страницы
-        window.onload = render;
+        // --- Форматирование JSON (pretty print) ---
+        function formatJSON() {
+            try {
+                const parsed = JSON.parse(editor.getValue());
+                const formatted = JSON.stringify(parsed, null, 2);
+                editor.setValue(formatted);
+            } catch (e) {
+                alert('Нельзя отформатировать: ' + e.message);
+            }
+        }
+
+        // Автоматический рендер при загрузке
+        window.onload = function() {
+            renderFromJSON();
+        };
     </script>
 </body>
 </html>
