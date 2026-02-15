@@ -2,132 +2,162 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture (редактируемая версия)</title>
+    <title>Rich Picture Editor</title>
     <style>
-        body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; font-family: 'Segoe UI', sans-serif; }
-        .container { background: white; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 20px; }
-        canvas { display: block; border: 1px solid #ccc; border-radius: 8px; background: white; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; background: #2d2d2d; color: #ccc; }
+        .left-panel { width: 40%; background: #1e1e1e; display: flex; flex-direction: column; border-right: 2px solid #555; }
+        .right-panel { width: 60%; display: flex; justify-content: center; align-items: center; background: #3c3c3c; }
+        textarea { width: 100%; flex-grow: 1; background: #1e1e1e; color: #d4d4d4; border: none; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; resize: none; outline: none; }
+        .toolbar { padding: 10px; background: #2d2d2d; text-align: center; }
+        button { background: #007acc; border: none; color: white; padding: 8px 16px; font-size: 16px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #005a9e; }
+        canvas { background: white; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
-<div class="container">
-    <canvas id="richCanvas" width="1200" height="800"></canvas>
-</div>
+    <div class="left-panel">
+        <textarea id="code" spellcheck="false">
+// Функции рисования (они уже определены в глобальной области)
+// Вы можете их вызывать, менять координаты, текст и цвета.
 
-<script>
-    const canvas = document.getElementById('richCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+// Клиент (слева)
+drawRectWithText(50, 200, 180, 160, 'Клиент', [
+    'тревога/депрессия',
+    'сомнения, стигма',
+    'ведёт дневник',
+    '(бумага/телефон)'
+], '#bbdefb');
 
-    // --- Вспомогательные функции (можно не трогать) ---
-    function drawRectWithText(x, y, w, h, title, lines, color = '#e3f2fd') {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
-        ctx.font = 'bold 16px "Segoe UI", sans-serif';
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'center';
-        ctx.fillText(title, x + w/2, y + 25);
-        ctx.font = '14px "Segoe UI", sans-serif';
-        ctx.fillStyle = '#222';
-        for (let i = 0; i < lines.length; i++) {
-            ctx.fillText(lines[i], x + w/2, y + 50 + i * 20);
-        }
-    }
+// Психолог (справа)
+drawRectWithText(970, 200, 180, 160, 'Психолог', [
+    'сессии, опросники',
+    '(Beck, GAD-7)',
+    'ручная обработка',
+    'бумажные карты'
+], '#c8e6c9');
 
-    function drawCloud(x, y, w, h, lines, color = '#fff9c4') {
-        ctx.fillStyle = color;
-        ctx.strokeStyle = '#888';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.font = '14px "Segoe UI", sans-serif';
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        let startY = y - (lines.length-1) * 10;
-        for (let i = 0; i < lines.length; i++) {
-            ctx.fillText(lines[i], x, startY + i * 20);
-        }
-    }
+// Платформа (центр)
+drawRectWithText(450, 220, 300, 220, 'Защищенная платформа', [
+    '• Эл. опросники (автоподсчёт)',
+    '• Безопасный дневник',
+    '• Панель психолога',
+    '• Шифрование и доступ'
+], '#ffe0b2');
 
-    function drawArrow(x1, y1, x2, y2, label = '', color = '#555', dashed = false) {
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash(dashed ? [5, 5] : []);
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        const arrowSize = 12;
-        const dx = arrowSize * 0.7 * Math.cos(angle - 0.2);
-        const dy = arrowSize * 0.7 * Math.sin(angle - 0.2);
-        const dx2 = arrowSize * 0.7 * Math.cos(angle + 0.2);
-        const dy2 = arrowSize * 0.7 * Math.sin(angle + 0.2);
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(x2 - dx, y2 - dy);
-        ctx.lineTo(x2 - dx2, y2 - dy2);
-        ctx.closePath();
-        ctx.fill();
-        if (label) {
-            ctx.font = 'italic 14px "Segoe UI", sans-serif';
-            ctx.fillStyle = '#333';
+// Облака проблем
+drawCloud(1060, 100, 200, 60, ['Ручная обработка →', 'ошибки до 15%'], '#ffccbc');
+drawCloud(600, 60, 240, 60, ['Нет структурированного', 'наблюдения между сессиями'], '#ffe0b2');
+drawCloud(140, 100, 200, 60, ['Риск утечки', 'конфиденциальных данных'], '#ffab91');
+
+// Стрелка "Сессии" (теперь ниже)
+drawArrow(230, 330, 970, 330, 'Сессии', '#2c3e50');
+
+// Стрелка от клиента к платформе
+drawArrow(230, 280, 450, 300, 'Заполняет скрининги,\nведёт дневник', '#2e7d32');
+
+// Стрелка от психолога к платформе
+drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслеживает динамику', '#2e7d32');
+        </textarea>
+        <div class="toolbar">
+            <button onclick="render()">Обновить</button>
+        </div>
+    </div>
+    <div class="right-panel">
+        <canvas id="richCanvas" width="1200" height="800"></canvas>
+    </div>
+
+    <script>
+        // --- Определяем функции рисования точно так же, как в статическом примере ---
+        function drawRectWithText(x, y, w, h, title, lines, color = '#e3f2fd') {
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+            ctx.font = 'bold 16px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#000';
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            const midX = (x1 + x2) / 2;
-            const midY = (y1 + y2) / 2 - 10;
-            ctx.fillText(label, midX, midY);
+            ctx.fillText(title, x + w/2, y + 25);
+            ctx.font = '14px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#222';
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillText(lines[i], x + w/2, y + 50 + i * 20);
+            }
         }
-    }
 
-    // --- Рисуем элементы ---
-    // Клиент (слева)
-    drawRectWithText(50, 200, 180, 160, 'Клиент', [
-        'тревога/депрессия',
-        'сомнения, стигма',
-        'ведёт дневник',
-        '(бумага/телефон)'
-    ], '#bbdefb');
+        function drawCloud(x, y, w, h, lines, color = '#fff9c4') {
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.font = '14px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let startY = y - (lines.length-1) * 10;
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillText(lines[i], x, startY + i * 20);
+            }
+        }
 
-    // Психолог (справа)
-    drawRectWithText(970, 200, 180, 160, 'Психолог', [
-        'сессии, опросники',
-        '(Beck, GAD-7)',
-        'ручная обработка',
-        'бумажные карты'
-    ], '#c8e6c9');
+        function drawArrow(x1, y1, x2, y2, label = '', color = '#555', dashed = false) {
+            const ctx = canvas.getContext('2d');
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash(dashed ? [5, 5] : []);
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const arrowSize = 12;
+            const dx = arrowSize * 0.7 * Math.cos(angle - 0.2);
+            const dy = arrowSize * 0.7 * Math.sin(angle - 0.2);
+            const dx2 = arrowSize * 0.7 * Math.cos(angle + 0.2);
+            const dy2 = arrowSize * 0.7 * Math.sin(angle + 0.2);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - dx, y2 - dy);
+            ctx.lineTo(x2 - dx2, y2 - dy2);
+            ctx.closePath();
+            ctx.fill();
+            if (label) {
+                ctx.font = 'italic 14px "Segoe UI", sans-serif';
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2 - 10;
+                ctx.fillText(label, midX, midY);
+            }
+        }
 
-    // Платформа (центр)
-    drawRectWithText(450, 220, 300, 220, 'Защищенная платформа', [
-        '• Эл. опросники (автоподсчёт)',
-        '• Безопасный дневник',
-        '• Панель психолога',
-        '• Шифрование и доступ'
-    ], '#ffe0b2');
+        const canvas = document.getElementById('richCanvas');
 
-    // Облака проблем
-    drawCloud(1060, 100, 200, 60, ['Ручная обработка →', 'ошибки до 15%'], '#ffccbc');
-    drawCloud(600, 60, 240, 60, ['Нет структурированного', 'наблюдения между сессиями'], '#ffe0b2');
-    drawCloud(140, 100, 200, 60, ['Риск утечки', 'конфиденциальных данных'], '#ffab91');
+        function render() {
+            const code = document.getElementById('code').value;
+            // Очищаем canvas перед рисованием
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            try {
+                // Выполняем код из textarea в контексте текущей страницы.
+                // Функции drawRectWithText и др. уже доступны.
+                eval(code);
+            } catch (e) {
+                alert('Ошибка в коде: ' + e.message);
+            }
+        }
 
-    // Стрелка "Сессии" (теперь проходит ниже, чтобы не мешать тексту)
-    drawArrow(230, 330, 970, 330, 'Сессии', '#2c3e50');
-
-    // Стрелка от клиента к платформе
-    drawArrow(230, 280, 450, 300, 'Заполняет скрининги,\nведёт дневник', '#2e7d32');
-
-    // Стрелка от психолога к платформе
-    drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслеживает динамику', '#2e7d32');
-
-    // Можно добавлять свои стрелки или фигуры здесь
-</script>
+        // Автоматически рендерим при загрузке страницы
+        window.onload = render;
+    </script>
 </body>
 </html>
