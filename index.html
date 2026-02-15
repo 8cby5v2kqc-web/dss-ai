@@ -2,550 +2,177 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture Editor</title>
+    <title>Rich Picture</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            margin: 0;
+            min-height: 100vh;
             background: #2d2d2d;
-        }
-        .left-panel {
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #3c3c3c;
-            overflow: auto;
-            padding: 10px;
-            width: 60%;
-            transition: width 0.1s;
+            font-family: 'Segoe UI', sans-serif;
         }
-        .right-panel {
-            display: flex;
-            flex-direction: column;
-            background: #f5f5f5;
-            border-left: 2px solid #555;
-            width: 40%;
-            transition: width 0.1s;
-        }
-        .toolbar {
-            padding: 10px;
-            background: #e0e0e0;
-            text-align: center;
-            border-bottom: 1px solid #ccc;
-            flex-shrink: 0;
-        }
-        button {
-            background: #007acc;
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            font-size: 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 0 5px;
-            font-family: inherit;
-        }
-        button:hover { background: #005a9e; }
         canvas {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            display: block;
             max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-        .splitter {
-            width: 6px;
-            background: #888;
-            cursor: col-resize;
-            user-select: none;
-            transition: background 0.2s;
-        }
-        .splitter:hover, .splitter:active {
-            background: #007acc;
-        }
-        .CodeMirror {
-            height: 100% !important;
-            font-size: 16px;
-        }
-        .error-message {
-            color: #d32f2f;
-            padding: 10px;
-            background: #ffebee;
-            border-radius: 4px;
-            margin: 10px;
-            display: none;
-            font-family: 'Courier New', monospace;
-            border: 1px solid #d32f2f;
-            white-space: pre-wrap;
-        }
-        .info-bar {
-            padding: 5px 10px;
-            background: #e8e8e8;
-            font-size: 14px;
-            color: #555;
-            text-align: right;
-            border-top: 1px solid #ccc;
-        }
-        .save-success {
-            background: #4caf50;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            margin-left: 10px;
-            display: inline-block;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.5s;
+            height: auto;
         }
     </style>
-    <!-- CodeMirror -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
-    <!-- Ajv -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.12.0/ajv.min.js"></script>
 </head>
 <body>
-    <div class="left-panel" id="leftPanel">
-        <canvas id="richCanvas" width="1200" height="800"></canvas>
-    </div>
-    <div class="splitter" id="splitter"></div>
-    <div class="right-panel" id="rightPanel">
-        <textarea id="jsonCode" hidden></textarea>
-        <div class="toolbar">
-            <button onclick="renderFromJSON()">Обновить</button>
-            <button onclick="formatJSON()">Форматировать</button>
-            <button onclick="exportPNG()">Сохранить PNG</button>
-            <button onclick="saveToStorage()">💾 Сохранить в браузере</button>
-            <button onclick="swapPanels()">Поменять стороны</button>
-            <span id="saveIndicator" class="save-success">✓ Сохранено</span>
-        </div>
-        <div id="validationError" class="error-message"></div>
-        <div class="info-bar">Нажмите «Сохранить» чтобы код не пропадал после перезагрузки</div>
-    </div>
+    <canvas id="richCanvas" width="1200" height="800"></canvas>
 
     <script>
-        // === Разделитель панелей ===
-        const leftPanel = document.getElementById('leftPanel');
-        const rightPanel = document.getElementById('rightPanel');
-        const splitter = document.getElementById('splitter');
-        let isDragging = false;
-        let startX, startLeftWidth, startRightWidth;
-
-        splitter.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            startX = e.clientX;
-            startLeftWidth = leftPanel.offsetWidth;
-            startRightWidth = rightPanel.offsetWidth;
-            document.body.style.cursor = 'col-resize';
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-        });
-
-        function onMouseMove(e) {
-            if (!isDragging) return;
-            const delta = e.clientX - startX;
-            const newLeftWidth = startLeftWidth + delta;
-            const containerWidth = document.body.clientWidth;
-            if (newLeftWidth < 200 || newLeftWidth > containerWidth - 200) return;
-            leftPanel.style.width = newLeftWidth + 'px';
-            rightPanel.style.width = (containerWidth - newLeftWidth - splitter.offsetWidth) + 'px';
-        }
-
-        function onMouseUp() {
-            isDragging = false;
-            document.body.style.cursor = 'default';
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        }
-
-        // === Инициализация CodeMirror ===
-        const textarea = document.getElementById('jsonCode');
-        const editor = CodeMirror.fromTextArea(textarea, {
-            mode: { name: 'javascript', json: true },
-            lineNumbers: true,
-            lineWrapping: true,
-            indentUnit: 2,
-            autoCloseBrackets: true,
-            matchBrackets: true,
-            theme: 'default'
-        });
-
-        // === JSON Schema ===
-        const schema = {
-            type: "object",
-            properties: {
-                rectangles: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            x: { type: "number" },
-                            y: { type: "number" },
-                            width: { type: "number" },
-                            height: { type: "number" },
-                            title: { type: "string" },
-                            lines: { type: "array", items: { type: "string" } },
-                            color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }
-                        },
-                        required: ["x", "y", "width", "height", "title", "lines"]
-                    }
-                },
-                clouds: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            x: { type: "number" },
-                            y: { type: "number" },
-                            width: { type: "number" },
-                            height: { type: "number" },
-                            lines: { type: "array", items: { type: "string" } },
-                            color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }
-                        },
-                        required: ["x", "y", "width", "height", "lines"]
-                    }
-                },
-                arrows: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            x1: { type: "number" },
-                            y1: { type: "number" },
-                            x2: { type: "number" },
-                            y2: { type: "number" },
-                            label: { type: "string" },
-                            color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" },
-                            dashed: { type: "boolean" }
-                        },
-                        required: ["x1", "y1", "x2", "y2"]
-                    }
-                }
-            },
-            additionalProperties: false
-        };
-
-        const ajv = new Ajv();
-        const validate = ajv.compile(schema);
-
-        // === Функции рисования (полностью как в предыдущей версии) ===
-        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
-            if (w < 2 * r) r = w / 2;
-            if (h < 2 * r) r = h / 2;
-            this.moveTo(x + r, y);
-            this.lineTo(x + w - r, y);
-            this.quadraticCurveTo(x + w, y, x + w, y + r);
-            this.lineTo(x + w, y + h - r);
-            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            this.lineTo(x + r, y + h);
-            this.quadraticCurveTo(x, y + h, x, y + h - r);
-            this.lineTo(x, y + r);
-            this.quadraticCurveTo(x, y, x + r, y);
-            return this;
-        };
-
-        function drawRectWithText(ctx, x, y, w, h, title, lines, color = '#e3f2fd') {
-            ctx.fillStyle = color;
-            ctx.shadowColor = 'rgba(0,0,0,0.2)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 3;
-            ctx.shadowOffsetY = 3;
-            ctx.beginPath();
-            ctx.roundRect(x, y, w, h, 12);
-            ctx.fill();
-            ctx.shadowColor = 'transparent';
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            ctx.font = 'bold 18px "Times New Roman", serif';
-            ctx.fillStyle = '#000';
-            ctx.textAlign = 'center';
-            ctx.fillText(title, x + w/2, y + 30);
-
-            ctx.font = '16px "Times New Roman", serif';
-            ctx.fillStyle = '#222';
-            for (let i = 0; i < lines.length; i++) {
-                ctx.fillText(lines[i], x + w/2, y + 60 + i * 24);
-            }
-        }
-
-        function drawCloud(ctx, x, y, w, h, lines, color = '#fff9c4') {
-            ctx.fillStyle = color;
-            ctx.shadowColor = 'rgba(0,0,0,0.15)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
-            ctx.beginPath();
-            ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowColor = 'transparent';
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            ctx.font = '16px "Times New Roman", serif';
-            ctx.fillStyle = '#000';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            let startY = y - (lines.length-1) * 12;
-            for (let i = 0; i < lines.length; i++) {
-                ctx.fillText(lines[i], x, startY + i * 24);
-            }
-        }
-
-        function drawArrow(ctx, x1, y1, x2, y2, label = '', color = '#555', dashed = false) {
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2.5;
-            ctx.setLineDash(dashed ? [8, 6] : []);
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            const arrowSize = 14;
-            const dx = arrowSize * 0.7 * Math.cos(angle - 0.3);
-            const dy = arrowSize * 0.7 * Math.sin(angle - 0.3);
-            const dx2 = arrowSize * 0.7 * Math.cos(angle + 0.3);
-            const dy2 = arrowSize * 0.7 * Math.sin(angle + 0.3);
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(x2, y2);
-            ctx.lineTo(x2 - dx, y2 - dy);
-            ctx.lineTo(x2 - dx2, y2 - dy2);
-            ctx.closePath();
-            ctx.fill();
-
-            if (label) {
-                ctx.font = 'italic 16px "Times New Roman", serif';
-                ctx.fillStyle = '#333';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                const midX = (x1 + x2) / 2;
-                const midY = (y1 + y2) / 2 - 12;
-                const lines = label.split('\n');
-                for (let i = 0; i < lines.length; i++) {
-                    ctx.fillText(lines[i], midX, midY + i * 22);
-                }
-            }
-        }
-
-        const canvas = document.getElementById('richCanvas');
-        const errorDiv = document.getElementById('validationError');
-        const saveIndicator = document.getElementById('saveIndicator');
-
-        // === Работа с localStorage ===
-        const STORAGE_KEY = 'richPictureJson';
-
-        // Функция принудительного сохранения
-        function saveToStorage() {
-            const jsonString = editor.getValue();
-            try {
-                // Проверяем, что JSON валидный перед сохранением
-                JSON.parse(jsonString);
-                localStorage.setItem(STORAGE_KEY, jsonString);
-                
-                // Показываем индикатор сохранения
-                saveIndicator.style.opacity = '1';
-                setTimeout(() => {
-                    saveIndicator.style.opacity = '0';
-                }, 2000);
-                
-                console.log('JSON сохранён в localStorage', jsonString.substring(0, 50) + '...');
-            } catch (e) {
-                alert('Нельзя сохранить: JSON содержит ошибки. Исправьте их и попробуйте снова.\n\n' + e.message);
-            }
-        }
-
-        // Загрузка из localStorage (если есть)
-        function loadFromStorage() {
-            try {
-                const saved = localStorage.getItem(STORAGE_KEY);
-                if (saved) {
-                    // Проверяем, что это валидный JSON
-                    JSON.parse(saved);
-                    editor.setValue(saved);
-                    console.log('Загружено из localStorage');
-                } else {
-                    // Если ничего нет, ставим дефолтный JSON
-                    editor.setValue(JSON.stringify(defaultJson, null, 2));
-                    console.log('Установлен JSON по умолчанию');
-                }
-            } catch (e) {
-                console.warn('Ошибка загрузки из localStorage, используем дефолтный', e);
-                editor.setValue(JSON.stringify(defaultJson, null, 2));
-            }
-        }
-
-        // === Исправленный дефолтный JSON ===
-        const defaultJson = {
-            rectangles: [
-                {
-                    x: 50,
-                    y: 200,
-                    width: 180,
-                    height: 160,
-                    title: "Клиент",
-                    lines: ["тревога/депрессия", "сомнения, стигма", "ведёт дневник", "(бумага/телефон)"],
-                    color: "#bbdefb"
-                },
-                {
-                    x: 970,
-                    y: 200,
-                    width: 180,
-                    height: 160,
-                    title: "Психолог",
-                    lines: ["сессии, опросники", "(Beck, GAD-7)", "ручная обработка", "бумажные карты"],
-                    color: "#c8e6c9"
-                },
-                {
-                    x: 450,
-                    y: 220,
-                    width: 300,
-                    height: 220,
-                    title: "Защищенная платформа",
-                    lines: ["• Эл. опросники (автоподсчёт)", "• Безопасный дневник", "• Панель психолога", "• Шифрование и доступ"],
-                    color: "#ffe0b2"
-                }
-            ],
-            clouds: [
-                {
-                    x: 600,
-                    y: 60,
-                    width: 280,
-                    height: 70,
-                    lines: ["Нет структурированного", "наблюдения между сессиями"],
-                    color: "#ffe0b2"
-                },
-                {
-                    x: 1060,
-                    y: 100,
-                    width: 200,
-                    height: 60,
-                    lines: ["Ручная обработка →", "ошибки до 15%"],
-                    color: "#ffccbc"
-                },
-                {
-                    x: 140,
-                    y: 100,
-                    width: 200,
-                    height: 60,
-                    lines: ["Риск утечки", "конфиденциальных данных"],
-                    color: "#ffab91"
-                }
-            ],
-            arrows: [
-                {
-                    x1: 230,
-                    y1: 330,
-                    x2: 970,
-                    y2: 330,
-                    label: "Сессии",
-                    color: "#2c3e50",
-                    dashed: false
-                },
-                {
-                    x1: 230,
-                    y1: 280,
-                    x2: 450,
-                    y2: 300,
-                    label: "Заполняет скрининги,\nведёт дневник",
-                    color: "#2e7d32",
-                    dashed: false
-                },
-                {
-                    x1: 970,
-                    y1: 280,
-                    x2: 750,
-                    y2: 320,
-                    label: "Получает отчёты,\nотслеживает динамику",
-                    color: "#2e7d32",
-                    dashed: false
-                }
-            ]
-        };
-
-        // === Загружаем при старте ===
-        loadFromStorage();
-
-        // === Рендер (без автоматического сохранения) ===
-        function renderFromJSON() {
-            const jsonString = editor.getValue();
+        (function() {
+            const canvas = document.getElementById('richCanvas');
             const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.shadowColor = 'transparent';
-            errorDiv.style.display = 'none';
 
-            try {
-                const data = JSON.parse(jsonString);
-                const valid = validate(data);
-                if (!valid) {
-                    const errors = validate.errors.map(e => `${e.instancePath} ${e.message}`).join('; ');
-                    throw new Error(`Схема не пройдена: ${errors}`);
-                }
+            // === Вспомогательная функция для скруглённого прямоугольника ===
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x + r, y);
+                this.lineTo(x + w - r, y);
+                this.quadraticCurveTo(x + w, y, x + w, y + r);
+                this.lineTo(x + w, y + h - r);
+                this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                this.lineTo(x + r, y + h);
+                this.quadraticCurveTo(x, y + h, x, y + h - r);
+                this.lineTo(x, y + r);
+                this.quadraticCurveTo(x, y, x + r, y);
+                return this;
+            };
 
-                if (data.rectangles) {
-                    data.rectangles.forEach(r => {
-                        drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color);
-                    });
-                }
-                if (data.clouds) {
-                    data.clouds.forEach(c => {
-                        drawCloud(ctx, c.x, c.y, c.width, c.height, c.lines, c.color);
-                    });
-                }
-                if (data.arrows) {
-                    data.arrows.forEach(a => {
-                        drawArrow(ctx, a.x1, a.y1, a.x2, a.y2, a.label, a.color, a.dashed);
-                    });
-                }
+            // === Функция рисования прямоугольника ===
+            function drawRect(x, y, w, h, title, lines, color) {
+                ctx.fillStyle = color;
+                ctx.shadowColor = 'rgba(0,0,0,0.2)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetX = 3;
+                ctx.shadowOffsetY = 3;
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, 12);
+                ctx.fill();
+                ctx.shadowColor = 'transparent';
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
 
-                // Больше НЕТ автоматического сохранения!
+                ctx.font = 'bold 20px "Times New Roman", serif';
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.fillText(title, x + w/2, y + 32);
 
-            } catch (e) {
-                errorDiv.style.display = 'block';
-                errorDiv.innerText = 'Ошибка: ' + e.message;
+                ctx.font = '16px "Times New Roman", serif';
+                ctx.fillStyle = '#222';
+                for (let i = 0; i < lines.length; i++) {
+                    ctx.fillText(lines[i], x + w/2, y + 65 + i * 24);
+                }
             }
-        }
 
-        function formatJSON() {
-            try {
-                const parsed = JSON.parse(editor.getValue());
-                const formatted = JSON.stringify(parsed, null, 2);
-                editor.setValue(formatted);
-            } catch (e) {
-                alert('Нельзя отформатировать: ' + e.message);
+            // === Функция рисования облака ===
+            function drawCloud(x, y, w, h, lines, color) {
+                ctx.fillStyle = color;
+                ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                ctx.beginPath();
+                ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowColor = 'transparent';
+                ctx.strokeStyle = '#888';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.font = '16px "Times New Roman", serif';
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let startY = y - (lines.length-1) * 12;
+                for (let i = 0; i < lines.length; i++) {
+                    ctx.fillText(lines[i], x, startY + i * 24);
+                }
             }
-        }
 
-        function exportPNG() {
-            const link = document.createElement('a');
-            link.download = 'rich-picture.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }
+            // === Функция рисования стрелки ===
+            function drawArrow(x1, y1, x2, y2, label, color = '#555', dashed = false) {
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.setLineDash(dashed ? [8, 6] : []);
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+                ctx.setLineDash([]);
 
-        function swapPanels() {
-            const parent = document.body;
-            const left = leftPanel;
-            const split = splitter;
-            const right = rightPanel;
-            parent.insertBefore(right, split);
-            parent.insertBefore(split, left);
-            parent.insertBefore(left, null);
-        }
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const arrowSize = 14;
+                const dx = arrowSize * 0.7 * Math.cos(angle - 0.3);
+                const dy = arrowSize * 0.7 * Math.sin(angle - 0.3);
+                const dx2 = arrowSize * 0.7 * Math.cos(angle + 0.3);
+                const dy2 = arrowSize * 0.7 * Math.sin(angle + 0.3);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(x2, y2);
+                ctx.lineTo(x2 - dx, y2 - dy);
+                ctx.lineTo(x2 - dx2, y2 - dy2);
+                ctx.closePath();
+                ctx.fill();
 
-        // При загрузке сразу рисуем
-        window.onload = function() {
-            renderFromJSON();
-        };
+                if (label) {
+                    ctx.font = 'italic 16px "Times New Roman", serif';
+                    ctx.fillStyle = '#333';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2 - 12;
+                    const lines = label.split('\n');
+                    for (let i = 0; i < lines.length; i++) {
+                        ctx.fillText(lines[i], midX, midY + i * 22);
+                    }
+                }
+            }
+
+            // === Отрисовка всех элементов ===
+            // Клиент
+            drawRect(50, 200, 180, 160, 'Клиент', [
+                'тревога/депрессия',
+                'сомнения, стигма',
+                'ведёт дневник',
+                '(бумага/телефон)'
+            ], '#bbdefb');
+
+            // Психолог
+            drawRect(970, 200, 180, 160, 'Психолог', [
+                'сессии, опросники',
+                '(Beck, GAD-7)',
+                'ручная обработка',
+                'бумажные карты'
+            ], '#c8e6c9');
+
+            // Платформа
+            drawRect(450, 220, 300, 220, 'Защищенная платформа', [
+                '• Эл. опросники (автоподсчёт)',
+                '• Безопасный дневник',
+                '• Панель психолога',
+                '• Шифрование и доступ'
+            ], '#ffe0b2');
+
+            // Облака проблем
+            drawCloud(1060, 100, 200, 60, ['Ручная обработка →', 'ошибки до 15%'], '#ffccbc');
+            drawCloud(600, 60, 280, 70, ['Нет структурированного', 'наблюдения между сессиями'], '#ffe0b2');
+            drawCloud(140, 100, 200, 60, ['Риск утечки', 'конфиденциальных данных'], '#ffab91');
+
+            // Стрелки
+            drawArrow(230, 330, 970, 330, 'Сессии', '#2c3e50');
+            drawArrow(230, 280, 450, 300, 'Заполняет скрининги,\nведёт дневник', '#2e7d32');
+            drawArrow(970, 280, 750, 320, 'Получает отчёты,\nотслеживает динамику', '#2e7d32');
+        })();
     </script>
 </body>
 </html>
