@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Rich Picture Editor — сохранение и автозагрузка</title>
+    <title>Rich Picture Editor</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -90,6 +90,17 @@
             text-align: right;
             border-top: 1px solid #ccc;
         }
+        .save-success {
+            background: #4caf50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-left: 10px;
+            display: inline-block;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
     </style>
     <!-- CodeMirror -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
@@ -109,10 +120,12 @@
             <button onclick="renderFromJSON()">Обновить</button>
             <button onclick="formatJSON()">Форматировать</button>
             <button onclick="exportPNG()">Сохранить PNG</button>
+            <button onclick="saveToStorage()">💾 Сохранить в браузере</button>
             <button onclick="swapPanels()">Поменять стороны</button>
+            <span id="saveIndicator" class="save-success">✓ Сохранено</span>
         </div>
         <div id="validationError" class="error-message"></div>
-        <div class="info-bar">JSON автосохраняется после успешной отрисовки</div>
+        <div class="info-bar">Нажмите «Сохранить» чтобы код не пропадал после перезагрузки</div>
     </div>
 
     <script>
@@ -220,7 +233,7 @@
         const ajv = new Ajv();
         const validate = ajv.compile(schema);
 
-        // === Функции рисования (как в предыдущей версии) ===
+        // === Функции рисования (полностью как в предыдущей версии) ===
         CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
             if (w < 2 * r) r = w / 2;
             if (h < 2 * r) r = h / 2;
@@ -326,19 +339,52 @@
 
         const canvas = document.getElementById('richCanvas');
         const errorDiv = document.getElementById('validationError');
+        const saveIndicator = document.getElementById('saveIndicator');
 
-        // === Сохранение и загрузка из localStorage ===
+        // === Работа с localStorage ===
         const STORAGE_KEY = 'richPictureJson';
 
-        function saveToStorage(jsonString) {
-            localStorage.setItem(STORAGE_KEY, jsonString);
+        // Функция принудительного сохранения
+        function saveToStorage() {
+            const jsonString = editor.getValue();
+            try {
+                // Проверяем, что JSON валидный перед сохранением
+                JSON.parse(jsonString);
+                localStorage.setItem(STORAGE_KEY, jsonString);
+                
+                // Показываем индикатор сохранения
+                saveIndicator.style.opacity = '1';
+                setTimeout(() => {
+                    saveIndicator.style.opacity = '0';
+                }, 2000);
+                
+                console.log('JSON сохранён в localStorage', jsonString.substring(0, 50) + '...');
+            } catch (e) {
+                alert('Нельзя сохранить: JSON содержит ошибки. Исправьте их и попробуйте снова.\n\n' + e.message);
+            }
         }
 
+        // Загрузка из localStorage (если есть)
         function loadFromStorage() {
-            return localStorage.getItem(STORAGE_KEY);
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    // Проверяем, что это валидный JSON
+                    JSON.parse(saved);
+                    editor.setValue(saved);
+                    console.log('Загружено из localStorage');
+                } else {
+                    // Если ничего нет, ставим дефолтный JSON
+                    editor.setValue(JSON.stringify(defaultJson, null, 2));
+                    console.log('Установлен JSON по умолчанию');
+                }
+            } catch (e) {
+                console.warn('Ошибка загрузки из localStorage, используем дефолтный', e);
+                editor.setValue(JSON.stringify(defaultJson, null, 2));
+            }
         }
 
-        // === Исправленный дефолтный JSON (без обратных слешей) ===
+        // === Исправленный дефолтный JSON ===
         const defaultJson = {
             rectangles: [
                 {
@@ -410,7 +456,7 @@
                     y1: 280,
                     x2: 450,
                     y2: 300,
-                    label: "Заполняет скрининги,\nведёт дневник",  // исправлено: убран обратный слеш
+                    label: "Заполняет скрининги,\nведёт дневник",
                     color: "#2e7d32",
                     dashed: false
                 },
@@ -419,22 +465,17 @@
                     y1: 280,
                     x2: 750,
                     y2: 320,
-                    label: "Получает отчёты,\nотслеживает динамику", // исправлено
+                    label: "Получает отчёты,\nотслеживает динамику",
                     color: "#2e7d32",
                     dashed: false
                 }
             ]
         };
 
-        // === Загружаем либо из localStorage, либо дефолт ===
-        const saved = loadFromStorage();
-        if (saved) {
-            editor.setValue(saved);
-        } else {
-            editor.setValue(JSON.stringify(defaultJson, null, 2));
-        }
+        // === Загружаем при старте ===
+        loadFromStorage();
 
-        // === Основная функция рендера с сохранением ===
+        // === Рендер (без автоматического сохранения) ===
         function renderFromJSON() {
             const jsonString = editor.getValue();
             const ctx = canvas.getContext('2d');
@@ -444,15 +485,12 @@
 
             try {
                 const data = JSON.parse(jsonString);
-
-                // Валидация по схеме
                 const valid = validate(data);
                 if (!valid) {
                     const errors = validate.errors.map(e => `${e.instancePath} ${e.message}`).join('; ');
                     throw new Error(`Схема не пройдена: ${errors}`);
                 }
 
-                // Рисуем
                 if (data.rectangles) {
                     data.rectangles.forEach(r => {
                         drawRectWithText(ctx, r.x, r.y, r.width, r.height, r.title, r.lines, r.color);
@@ -469,8 +507,7 @@
                     });
                 }
 
-                // Если дошли до сюда — сохраняем в localStorage
-                saveToStorage(jsonString);
+                // Больше НЕТ автоматического сохранения!
 
             } catch (e) {
                 errorDiv.style.display = 'block';
@@ -495,7 +532,6 @@
             link.click();
         }
 
-        // === Смена панелей ===
         function swapPanels() {
             const parent = document.body;
             const left = leftPanel;
